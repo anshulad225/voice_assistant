@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.exotel.com)",
+      "WebFetch(domain:support.exotel.com)",
+      "WebFetch(domain:docs.pipecat.ai)",
+      "WebFetch(domain:reference-server.pipecat.ai)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:exotel.com)",
+      "WebFetch(domain:developer.exotel.com)",
+      "WebFetch(domain:doc.telecmi.com)",
+      "WebFetch(domain:www.telecmi.com)",
+      "Bash(python -c \"from google.genai import types; print\\(dir\\(types.LiveServerMessage\\(\\)\\)\\)\")",
+      "Bash(python:*)",
+      "WebFetch(domain:docs.cloud.google.com)",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:www.sarvam.ai)",
+      "WebFetch(domain:docs.sarvam.ai)",
+      "WebFetch(domain:dashboard.sarvam.ai)",
+      "Bash(pip install:*)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}
