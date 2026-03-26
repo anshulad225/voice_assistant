@@ -19,7 +19,13 @@
       "WebFetch(domain:docs.sarvam.ai)",
       "WebFetch(domain:dashboard.sarvam.ai)",
       "Bash(pip install:*)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(wc:*)",
+      "Bash(venv/Scripts/python -c \"import google.genai; print\\(google.genai.__version__\\)\")",
+      "Bash(venv/Scripts/pip show:*)",
+      "Bash(venv/Scripts/python -c \"\nfrom google.genai import types\nprint\\('LiveConnectConfig model_fields:'\\)\nfor k, v in types.LiveConnectConfig.model_fields.items\\(\\):\n    print\\(f'  {k}: {v.annotation}'\\)\n\" 2>/dev/null)",
+      "Bash(venv/Scripts/python -c \":*)",
+      "Bash(venv/Scripts/python -m pytest tests/test_guardrails.py -q)"
     ]
   }
 }

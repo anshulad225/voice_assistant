@@ -60,7 +60,7 @@ dental-voice-intake/
 1. Caller → Twilio Phone Number
 2. Twilio → `/voice/incoming` webhook → TwiML with Stream URL
 3. Twilio Media Stream → `/voice/stream` WebSocket
-4. FastAPI → Google gemini-live-2.5-flash-native-audio
+4. FastAPI → Google gemini-2.5-flash-native-audio-preview-12-2025
  (audio + system prompt)
 5. Gemini → FastAPI → Twilio (audio response)
 6. Conversation ends → Parse transcript → Save to PostgreSQL

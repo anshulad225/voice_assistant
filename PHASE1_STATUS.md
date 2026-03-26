@@ -6,7 +6,7 @@
 - `app/voice_handler.py`: Bidirectional audio streaming
 - `app/main.py`: FastAPI WebSocket endpoint at `/voice/stream`
 - Twilio Media Streams integration
-- Google gemini-live-2.5-flash-native-audio
+- Google gemini-2.5-flash-native-audio-preview-12-2025
  connection with native audio support
 
 ### 2. Conversation Flow

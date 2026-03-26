@@ -1,4 +1,4 @@
-# Migration Guide: OpenAI Realtime API → gemini-live-2.5-flash-native-audio
+# Migration Guide: OpenAI Realtime API → gemini-2.5-flash-native-audio-preview-12-2025
 
 
 ## Why Gemini?

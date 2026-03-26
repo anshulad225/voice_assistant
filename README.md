@@ -2,7 +2,7 @@
 
 ## Core Voice Engine
 
-A HIPAA-eligible voice intake system that converts missed calls into structured digital summaries using gemini-live-2.5-flash-native-audio
+A HIPAA-eligible voice intake system that converts missed calls into structured digital summaries using gemini-2.5-flash-native-audio-preview-12-2025
 .
 
 ## 🎯 What It Does
@@ -17,7 +17,7 @@ A HIPAA-eligible voice intake system that converts missed calls into structured 
 
 - **Backend**: FastAPI (Python 3.11+)
 - **Telephony**: Twilio Media Streams
-- **AI**: gemini-live-2.5-flash-native-audio
+- **AI**: gemini-2.5-flash-native-audio-preview-12-2025
  (`gemini-2.0-flash-exp`)
 - **Database**: PostgreSQL + SQLAlchemy
 - **Hosting**: AWS (HIPAA-eligible)

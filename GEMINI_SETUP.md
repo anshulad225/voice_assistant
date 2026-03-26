@@ -1,4 +1,4 @@
-# Google gemini-live-2.5-flash-native-audio
+# Google gemini-2.5-flash-native-audio-preview-12-2025
  Setup Guide
 
 ## Getting Your Google AI API Key
@@ -16,7 +16,7 @@ Add to your `.env` file:
 GOOGLE_API_KEY=your_api_key_here
 ```
 
-## gemini-live-2.5-flash-native-audio
+## gemini-2.5-flash-native-audio-preview-12-2025
  Features
 
 This implementation uses `gemini-2.0-flash-exp` with native audio support:
@@ -74,7 +74,7 @@ Check your quota at [Google AI Studio](https://aistudio.google.com/):
 - Ensure no extra spaces in `.env`
 
 ### "Model not found"
-- gemini-live-2.5-flash-native-audio
+- gemini-2.5-flash-native-audio-preview-12-2025
  is in preview
 - Ensure your account has access
 - Try `gemini-2.0-flash-exp` model name
@@ -91,7 +91,7 @@ Check your quota at [Google AI Studio](https://aistudio.google.com/):
 
 ## Cost Estimation
 
-gemini-live-2.5-flash-native-audio
+gemini-2.5-flash-native-audio-preview-12-2025
  pricing (as of Dec 2024):
 - Audio input: $0.000125 per second
 - Audio output: $0.000250 per second

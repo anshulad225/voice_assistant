@@ -8,7 +8,7 @@ Health check response:
 ```json
 {
   "status": "healthy",
-  "ai_provider": "gemini-live-2.5-flash-native-audio"
+  "ai_provider": "gemini-2.5-flash-native-audio-preview-12-2025"
 }
 ```
 
@@ -126,7 +126,7 @@ Press `CTRL+C` in the terminal where the server is running.
 
 - **Server**: http://localhost:8000
 - **Database**: SQLite (dental_intake.db)
-- **AI Provider**: gemini-live-2.5-flash-native-audio
+- **AI Provider**: gemini-2.5-flash-native-audio-preview-12-2025
 - **Twilio Account**: 
 
 ---

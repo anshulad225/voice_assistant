@@ -2,7 +2,7 @@
 
 ## Summary
 
-The dental clinic voice intake system (Phase 1) has been successfully implemented using **gemini-live-2.5-flash-native-audio
+The dental clinic voice intake system (Phase 1) has been successfully implemented using **gemini-2.5-flash-native-audio-preview-12-2025
 ** with native audio support. The system is ready for testing and deployment.
 
 ## What Was Built
@@ -19,7 +19,7 @@ The dental clinic voice intake system (Phase 1) has been successfully implemente
 
 ### Technology Stack ✅
 - **Backend**: FastAPI (Python 3.11+)
-- **AI**: gemini-live-2.5-flash-native-audio
+- **AI**: gemini-2.5-flash-native-audio-preview-12-2025
  (`gemini-2.0-flash-exp`)
 - **Telephony**: Twilio Media Streams
 - **Database**: PostgreSQL + SQLAlchemy
@@ -256,6 +256,6 @@ Phase 1 is **code complete** and ready for testing. All automated tests pass, do
 ---
 
 **Implementation Date**: March 19, 2026
-**AI Provider**: gemini-live-2.5-flash-native-audio
+**AI Provider**: gemini-2.5-flash-native-audio-preview-12-2025
 
 **Status**: Phase 1 Complete - Ready for Testing

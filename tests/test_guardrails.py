@@ -7,10 +7,10 @@ class TestGuardrails:
     def test_system_prompt_contains_restrictions(self):
         """Verify system prompt explicitly forbids booking and clinical answers"""
         prompt_lower = SYSTEM_PROMPT.lower()
-        
+
         assert "never" in prompt_lower
-        assert "book" in prompt_lower or "appointment" in prompt_lower
-        assert "clinical" in prompt_lower or "medical" in prompt_lower
+        assert "appointment" in prompt_lower
+        assert "medical" in prompt_lower
         
     def test_booking_keywords_defined(self):
         """Verify booking-related keywords are tracked"""
@@ -46,7 +46,7 @@ class TestGuardrails:
         
     def test_conversation_flow_defined(self):
         """Verify the conversation follows a structured flow"""
-        assert "greet" in SYSTEM_PROMPT.lower()
+        assert "thank you for calling" in SYSTEM_PROMPT.lower()
         assert "reason" in SYSTEM_PROMPT.lower()
         assert "name" in SYSTEM_PROMPT.lower()
         assert "patient" in SYSTEM_PROMPT.lower()
@@ -57,9 +57,9 @@ def test_prompt_structure_complete():
         "receptionist",
         "dental",
         "never",
-        "book",
-        "clinical",
-        "greet",
+        "appointment",
+        "medical",
+        "thank you for calling",
         "reason",
         "name",
         "patient",

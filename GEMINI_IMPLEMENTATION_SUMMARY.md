@@ -2,7 +2,7 @@
 
 ## ✅ Implementation Complete
 
-The dental voice intake system has been successfully migrated to use **gemini-live-2.5-flash-native-audio
+The dental voice intake system has been successfully migrated to use **gemini-2.5-flash-native-audio-preview-12-2025
 ** with native audio support instead of OpenAI Realtime API.
 
 ## Architecture Overview
@@ -14,7 +14,7 @@ Caller → Twilio Phone → Media Stream (WebSocket)
                               ↓
                     Audio Buffering (10 chunks)
                               ↓
-                    gemini-live-2.5-flash-native-audio
+                    gemini-2.5-flash-native-audio-preview-12-2025
 
                     (gemini-2.0-flash-exp)
                               ↓

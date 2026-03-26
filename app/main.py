@@ -29,7 +29,7 @@ async def startup_event():
 async def health_check():
     return {
         "status": "healthy",
-        "ai_provider": "sarvam-30b",
+        "ai_provider": "gemini-2.5-flash-native-audio-preview-12-2025",
         "telephony_provider": settings.telephony_provider
     }
 
@@ -67,13 +67,23 @@ async def voice_stream(websocket: WebSocket, db: Session = Depends(get_db)):
     stream_sid = None
     is_telecmi = settings.telephony_provider == "telecmi"
 
-    # ── Task 1: receive audio from Exotel → forward to Gemini ──────────
+    # ── Task 1: receive audio from provider → forward to Gemini ─────────
     async def receive_from_provider():
         nonlocal call_sid, stream_sid
         try:
             while True:
-                msg   = await websocket.receive()
-                data  = json.loads(msg.get("text", "{}"))
+                msg = await websocket.receive()
+
+                # Guard: ignore non-text frames (e.g. ping/pong)
+                raw = msg.get("text")
+                if not raw:
+                    continue
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError:
+                    logger.warning(f"Malformed JSON from provider, skipping: {raw[:80]}")
+                    continue
+
                 event = data.get("event")
 
                 if event == "connected":
@@ -90,8 +100,11 @@ async def voice_stream(websocket: WebSocket, db: Session = Depends(get_db)):
                     logger.info(f"Call started: {call_sid}")
 
                 elif event == "media":
-                    audio = data.get("payload") if is_telecmi else data["media"]["payload"]
-                    await handler.send_audio(audio)
+                    try:
+                        audio = data.get("payload") if is_telecmi else data["media"]["payload"]
+                        await handler.send_audio(audio)
+                    except Exception as e:
+                        logger.error(f"Error forwarding audio chunk: {e}")
 
                 elif event == "stop":
                     logger.info(f"Call ended: {call_sid}")
@@ -100,23 +113,35 @@ async def voice_stream(websocket: WebSocket, db: Session = Depends(get_db)):
         except WebSocketDisconnect:
             logger.info("Provider WebSocket disconnected")
 
-    # ── Task 2: receive audio from Gemini → stream back to Exotel ──────
+    # ── Task 2: receive audio from Gemini → stream back to provider ─────
+    # Accumulate ~200 ms of PCM-8kHz before sending to reduce the number of
+    # small WebSocket messages (8000 Hz × 2 bytes × 0.2 s = 3200 bytes).
+    FLUSH_BYTES = 3200
+
     async def send_to_provider():
+        buf = bytearray()
         while True:
             pcm = await handler.get_response_audio()
-            if pcm is None:         # Gemini session ended
+            if pcm is None:         # Gemini session ended — flush remainder
+                if buf:
+                    audio_b64 = base64.b64encode(bytes(buf)).decode()
+                    payload = (
+                        json.dumps({"event": "media", "payload": audio_b64})
+                        if is_telecmi else
+                        json.dumps({"event": "media", "streamSid": stream_sid, "media": {"payload": audio_b64}})
+                    )
+                    await websocket.send_text(payload)
                 return
-            audio_b64 = base64.b64encode(pcm).decode()
-            if is_telecmi:
-                await websocket.send_text(json.dumps(
-                    {"event": "media", "payload": audio_b64}
-                ))
-            else:
-                await websocket.send_text(json.dumps({
-                    "event": "media",
-                    "streamSid": stream_sid,
-                    "media": {"payload": audio_b64}
-                }))
+            buf.extend(pcm)
+            if len(buf) >= FLUSH_BYTES:
+                audio_b64 = base64.b64encode(bytes(buf)).decode()
+                payload = (
+                    json.dumps({"event": "media", "payload": audio_b64})
+                    if is_telecmi else
+                    json.dumps({"event": "media", "streamSid": stream_sid, "media": {"payload": audio_b64}})
+                )
+                await websocket.send_text(payload)
+                buf.clear()
 
     receive_task = asyncio.create_task(receive_from_provider())
     send_task    = asyncio.create_task(send_to_provider())
