@@ -29,7 +29,7 @@ async def startup_event():
 async def health_check():
     return {
         "status": "healthy",
-        "ai_provider": "gemini-2.5-flash-native-audio-preview-12-2025",
+        "ai_provider": "sarvam-stt-bulbul-tts-keyword-matching",
         "telephony_provider": settings.telephony_provider
     }
 
@@ -114,9 +114,9 @@ async def voice_stream(websocket: WebSocket, db: Session = Depends(get_db)):
             logger.info("Provider WebSocket disconnected")
 
     # ── Task 2: receive audio from Gemini → stream back to provider ─────
-    # Accumulate ~200 ms of PCM-8kHz before sending to reduce the number of
-    # small WebSocket messages (8000 Hz × 2 bytes × 0.2 s = 3200 bytes).
-    FLUSH_BYTES = 3200
+    # Accumulate ~200 ms of PCM-16kHz before sending to reduce the number of
+    # small WebSocket messages (16000 Hz × 2 bytes × 0.2 s = 6400 bytes).
+    FLUSH_BYTES = 6400
 
     async def send_to_provider():
         buf = bytearray()

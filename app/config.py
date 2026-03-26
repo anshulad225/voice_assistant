@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     # WebSocket URL from HTTP ngrok, e.g. wss://xxxx.ngrok-free.dev/voice/stream
     telecmi_ws_url: Optional[str] = None
 
-    # Google AI (Gemini Live)
-    google_api_key: str
+    # Sarvam AI (STT + TTS)
+    sarvam_api_key: str
 
-    # Sarvam AI (legacy — no longer used)
-    sarvam_api_key: Optional[str] = None
+    # Google AI (not used)
+    google_api_key: Optional[str] = None
     
     # Database
     database_url: str
