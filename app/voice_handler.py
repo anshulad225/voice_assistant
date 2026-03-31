@@ -17,7 +17,7 @@ EXOTEL_RATE = 16000  # Exotel sends/receives 16 kHz PCM16
 
 # VAD
 SPEECH_THRESHOLD  = 400  # RMS above this = speech
-SILENCE_CHUNKS    = 15   # 15 × 20 ms = 300 ms silence → end of utterance
+SILENCE_CHUNKS    = 20   # 20 × 20 ms = 400 ms silence → end of utterance
 MIN_SPEECH_CHUNKS = 3    # 3 × 20 ms = 60 ms minimum
                          # was 7 (140 ms) — short words like "no" / "na" only
                          # produce 3-5 chunks and were being silently discarded
@@ -27,24 +27,21 @@ MIN_SPEECH_CHUNKS = 3    # 3 × 20 ms = 60 ms minimum
 # Why this exists: Exotel buffers + plays our audio, then the caller's mic can
 # pick up acoustic echo of that audio. We block inbound audio for
 # (audio_duration + TTS_ECHO_GUARD) to prevent that echo from hitting STT.
-#
-# Why 1.2s was wrong: "Are you an existing patient…" is ~3.5 s of audio.
-# Total block = 3.5 + 1.2 = 4.7 s.  Caller answers ~4.2 s after we start
-# sending (0.2 s Exotel buffer + 3.5 s playback + 0.5 s response time).
-# Their "no" arrived at 4.2 s but we were still blocking until 4.7 s → dropped.
-TTS_ECHO_GUARD = 0.8     # seconds — 0.5 caused echo capture (too short), 1.2 blocked "no" (too long)
+TTS_ECHO_GUARD = 0.8     # seconds — 0.5 caused echo capture, 1.2 blocked "no"
+
+# Call-level timeout: hang up gracefully if no completion within this many seconds.
+CALL_TIMEOUT_SECS = 120
 
 # ── Intent keyword sets ───────────────────────────────────────────────────────
 # Removed "ha", "ho", "hua", "ok", "ji" — Sarvam transcribes background noise
-# and partial syllables as these short tokens, causing false "yes" detections
-# (the "can I have your patient ID" random jump was caused by "ha" matching).
+# and partial syllables as these short tokens, causing false "yes" detections.
 YES_WORDS = {
     "yes", "yeah", "yep", "yup", "okay", "sure", "correct",
     "right", "haan", "haa", "bilkul", "theek", "sahi",
 }
 NO_WORDS = {
     "no", "nope", "nah", "nahi", "nahin", "na", "naa", "mat",
-    "wrong", "incorrect",
+    "wrong", "incorrect", "9",   # "9" — Sarvam translates "no" → "9" (nau/नौ homophone)
 }
 
 
@@ -56,8 +53,7 @@ def _match_intent(text: str) -> Optional[str]:
     transcripts like "no." / "nahi," / "Yes!" all match correctly.
     """
     text_lower = text.lower().strip()
-    # Extract pure alphabetic/numeric tokens — drops dots, commas, etc.
-    tokens = set(re.findall(r"[a-z]+", text_lower))
+    tokens = set(re.findall(r"[a-z0-9]+", text_lower))
     logger.info(f"intent tokens: {tokens}  (raw: {text_lower!r})")
 
     for w in YES_WORDS:
@@ -187,6 +183,24 @@ class VoiceHandler:
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
+    def _reset_vad(self):
+        """Clear VAD state so no stale speech fires after TTS ends."""
+        self._speech_buffer = []
+        self._silence_count = 0
+        self._is_speaking   = False
+
+    def _drain_queue(self):
+        """Discard any utterances queued while we were busy (STT + TTS time)."""
+        drained = 0
+        while not self._in_queue.empty():
+            try:
+                self._in_queue.get_nowait()
+                drained += 1
+            except asyncio.QueueEmpty:
+                break
+        if drained:
+            logger.info(f"Drained {drained} stale utterance(s) from queue")
+
     async def _play_greeting(self):
         """Synthesize opening greeting and queue it."""
         greeting = "Thank you for calling. May I know the reason for your call?"
@@ -195,25 +209,46 @@ class VoiceHandler:
         )
         audio = await self._tts(greeting)
         if audio:
+            self._reset_vad()
             self._tts_playing = True
             await self._out_queue.put(audio)
-            asyncio.get_event_loop().call_later(
+            asyncio.get_running_loop().call_later(
                 len(audio) / 32000 + TTS_ECHO_GUARD,
-                lambda: setattr(self, "_tts_playing", False),
+                self._finish_tts,
             )
+
+    def _finish_tts(self):
+        """Called by call_later after greeting TTS finishes. Unblocks VAD and drains queue."""
+        self._drain_queue()
+        self._tts_playing = False
 
     async def _process_loop(self):
         """Core loop: utterance → Sarvam STT → state machine → Sarvam TTS."""
+        deadline = asyncio.get_running_loop().time() + CALL_TIMEOUT_SECS
+
         while not self._closed:
             try:
-                audio_data = await asyncio.wait_for(self._in_queue.get(), timeout=1.0)
+                # Enforce call-level timeout
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    logger.warning("Call timeout — closing")
+                    await self._out_queue.put(None)
+                    return
+
+                audio_data = await asyncio.wait_for(
+                    self._in_queue.get(),
+                    timeout=min(1.0, remaining),
+                )
                 if audio_data is None:
                     break
 
-                # ── 1. Speech-to-Text (Sarvam Saaras v3) ─────────────────────
+                # ── 1. Speech-to-Text (Sarvam Saaras v3) — retry once ─────────
                 transcript = await self._stt(audio_data)
                 if not transcript or not transcript.strip():
-                    logger.warning("STT returned empty transcript, skipping")
+                    logger.warning("STT returned empty, retrying once")
+                    transcript = await self._stt(audio_data)
+                if not transcript or not transcript.strip():
+                    logger.warning("STT failed twice, skipping utterance")
                     continue
 
                 logger.info(f"Caller [{self._state.value}]: {transcript}")
@@ -231,13 +266,21 @@ class VoiceHandler:
                     {"role": "assistant", "text": response_text}
                 )
 
-                # ── 3. Text-to-Speech (Sarvam Bulbul v3) ─────────────────────
+                # ── 3. Text-to-Speech — retry once on failure ─────────────────
                 audio = await self._tts(response_text)
+                if not audio:
+                    logger.warning("TTS failed, retrying once")
+                    audio = await self._tts(response_text)
+
                 if audio:
+                    self._reset_vad()
                     self._tts_playing = True
                     await self._out_queue.put(audio)
                     await asyncio.sleep(len(audio) / 32000 + TTS_ECHO_GUARD)
+                    self._drain_queue()
                     self._tts_playing = False
+                else:
+                    logger.error("TTS failed twice — caller will hear silence")
 
                 # ── 4. Auto-close after goodbye ───────────────────────────────
                 if self._patient_info_saved:
@@ -261,7 +304,7 @@ class VoiceHandler:
         t = transcript.strip()
 
         if self._state == _State.WAIT_REASON:
-            self.conversation_data["reason"] = t          # store raw STT
+            self.conversation_data["reason"] = t
             self._state = _State.WAIT_EXISTING
             return "Are you an existing patient with us? Please say yes or no."
 
@@ -278,12 +321,12 @@ class VoiceHandler:
             return "I'm sorry, I didn't catch that. Please say yes or no."
 
         if self._state == _State.WAIT_PATIENT_ID:
-            self.conversation_data["patient_id"] = t      # store raw STT
+            self.conversation_data["patient_id"] = t
             self._state = _State.WAIT_NAME
             return "And your full name please?"
 
         if self._state == _State.WAIT_NAME:
-            self.conversation_data["caller_name"] = t     # store raw STT
+            self.conversation_data["caller_name"] = t
             self._state = _State.WAIT_CONFIRM
             patient_type = "an existing patient" if self._is_existing else "a new patient"
             return (
@@ -304,7 +347,6 @@ class VoiceHandler:
                     "Have a great day, goodbye!"
                 )
             if intent == "no":
-                # Reset and restart collection
                 self.conversation_data["reason"]      = None
                 self.conversation_data["caller_name"] = None
                 self.conversation_data["patient_id"]  = None
@@ -318,12 +360,12 @@ class VoiceHandler:
 
         return ""
 
-    # ── Sarvam STT — unchanged ────────────────────────────────────────────────
+    # ── Sarvam STT ────────────────────────────────────────────────────────────
 
-    async def _stt(self, audio_pcm8k: bytes) -> Optional[str]:
-        """Transcribe PCM 8 kHz audio → text via Sarvam Saaras v3."""
+    async def _stt(self, audio_pcm: bytes) -> Optional[str]:
+        """Transcribe PCM 16 kHz audio → text via Sarvam Saaras v3."""
         try:
-            wav_bytes = self._pcm_to_wav(audio_pcm8k, EXOTEL_RATE)
+            wav_bytes = self._pcm_to_wav(audio_pcm, EXOTEL_RATE)
             resp = await self._http.post(
                 "/speech-to-text",
                 headers={"api-subscription-key": settings.sarvam_api_key},
@@ -341,10 +383,10 @@ class VoiceHandler:
             logger.error(f"STT error: {e}")
             return None
 
-    # ── Sarvam TTS — unchanged ────────────────────────────────────────────────
+    # ── Sarvam TTS ────────────────────────────────────────────────────────────
 
     async def _tts(self, text: str) -> Optional[bytes]:
-        """Convert text → PCM 8 kHz via Sarvam Bulbul v3; returns raw PCM bytes."""
+        """Convert text → PCM 16 kHz via Sarvam Bulbul v3; returns raw PCM bytes."""
         try:
             resp = await self._http.post(
                 "/text-to-speech",
@@ -374,7 +416,7 @@ class VoiceHandler:
             logger.error(f"TTS error: {e}")
             return None
 
-    # ── Audio utilities — unchanged ───────────────────────────────────────────
+    # ── Audio utilities ───────────────────────────────────────────────────────
 
     @staticmethod
     def _pcm_to_wav(pcm_data: bytes, sample_rate: int) -> bytes:
